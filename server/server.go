@@ -13,26 +13,27 @@ import (
 )
 
 
-func SetupAndRunServer(router *mux.Router, debug bool, /*logError,*/ shutdown func()) {
-	port := "5000"
+func SetupAndRunServer(router *mux.Router, port string, debug bool, shutdown func()) {
+
 	server := http.Server{
 		Handler:      router,
 		Addr:         fmt.Sprintf("0.0.0.0:%s", port),
 		WriteTimeout: 5 * time.Minute,
 		ReadTimeout:  5 * time.Minute,
 	}
-	// This should be the only 'log' so that we have at least one line printed when the server starts in production mode
+	
+	// This should be 'log' so that we have at least one line printed when the server starts in production mode
 	log.Println("Server started -- Ready to accept connections")
-	// debugLog(fmt.Sprintf("Listening on port: %s", port))
-
+	
 	if debug {
+		log.Println(fmt.Sprintf("Listening on port: %s", port))
 		WalkRouter(router)
 	}
 
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			// logError(err, nil)
+			log.Println(err)
 		}
 	}()
 
