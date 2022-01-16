@@ -12,13 +12,11 @@ on:
 
 jobs:
   
-  mocha-tests:
+  external-unit-tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ '1.17' ]
-        # Only need one version for now
-        # go: [ '1.16', '1.17' ]
+        go: [ '1.16', '1.17' ]
 
     steps:
       - name: Checkout Code
@@ -29,5 +27,8 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
       
+      - name: Check Build
+        run: go build ./...
+        
       - name: Run Tests
         run: go test -v ./tests
