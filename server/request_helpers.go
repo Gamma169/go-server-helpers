@@ -16,7 +16,7 @@ type InputObject interface {
 }
 
 /*********************************************
- * Preprocess + Read Inputs
+ * Pre-process + Read Inputs
  * *******************************************/
 
 func PreProcessInput(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request, unmarshalFn func(interface{}, *http.Request) error) error {
@@ -53,7 +53,7 @@ func UnmarshalObjectFromHeaders(input interface{}, r *http.Request) error {
 	if header == JSONContentType {
 		return UnmarshalObjectFromJSONStrict(input, r)
 	} else if header == jsonapi.MediaType {
-		return jsonapi.UnmarshalPayload(r.Body, &input)
+		return jsonapi.UnmarshalPayload(r.Body, input)
 	} else {
 		return errors.New("Content-Type header is not json or jsonapi standard")
 	}
