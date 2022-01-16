@@ -12,7 +12,6 @@ import (
 	"time"
 )
 
-
 func SetupAndRunServer(router *mux.Router, port string, debug bool, shutdown func()) {
 
 	server := http.Server{
@@ -21,10 +20,10 @@ func SetupAndRunServer(router *mux.Router, port string, debug bool, shutdown fun
 		WriteTimeout: 5 * time.Minute,
 		ReadTimeout:  5 * time.Minute,
 	}
-	
+
 	// This should be 'log' so that we have at least one line printed when the server starts in production mode
 	log.Println("Server started -- Ready to accept connections")
-	
+
 	if debug {
 		log.Println(fmt.Sprintf("Listening on port: %s", port))
 		WalkRouter(router)
@@ -60,8 +59,6 @@ func SetupAndRunServer(router *mux.Router, port string, debug bool, shutdown fun
 	log.Println("Completed shutdown sequence.  Thank you and goodnight.  <(_ _)>")
 	os.Exit(0)
 }
-
-
 
 // Print out all route info
 // Walk function taken from example
