@@ -10,6 +10,8 @@ import (
  * Tests
  * *******************************************/
 
+// TODO: look into using this library?  Unfortunately it's old and possibly stale
+// https://github.com/erikstmartin/go-testdb
 func TestInitDB(t *testing.T) {
 	t.Skip("TODO")
 }

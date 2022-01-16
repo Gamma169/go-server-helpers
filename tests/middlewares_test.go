@@ -1,12 +1,16 @@
 package tests
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/Gamma169/go-server-helpers/server"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -96,5 +100,55 @@ func TestRequesterIdHeaderMiddleware(t *testing.T) {
 		} else {
 			equals(t, http.StatusBadRequest, rr.Code)
 		}
+	}
+}
+
+func TestAddLoggingMiddleware(t *testing.T) {
+	traceIdHeader := randString(25)
+
+	testCases := []struct {
+		header    string
+		value     string
+		shouldLog bool
+	}{
+		{traceIdHeader, uuid.New().String(), true},
+		{traceIdHeader, uuid.New().String(), true},
+		{"not-trace-id", "qwe", false},
+		{"not-req-id", "bad-val", false},
+	}
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer func() {
+		log.SetOutput(os.Stderr)
+	}()
+
+	for _, testCase := range testCases {
+
+		randEndpoint := "/" + randString(25)
+		req, err := http.NewRequest("GET", randEndpoint, nil)
+		ok(t, err)
+		req.Header.Add(testCase.header, testCase.value)
+
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		var receivedHeaders http.Header
+		router.Path(randEndpoint).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			receivedHeaders = r.Header
+		})
+		// FUNCTION TO TEST:
+		server.AddLoggingMiddleware(router, traceIdHeader, true)
+
+		router.ServeHTTP(rr, req)
+
+		equals(t, testCase.value, receivedHeaders.Get(testCase.header))
+		assert(t, rr.Result().Header.Get(testCase.header) == "", "Should not respond with header")
+
+		if testCase.shouldLog {
+			doesLogTrace := strings.Contains(buf.String(), testCase.value)
+			assert(t, doesLogTrace, "Should log trace in output")
+		}
+		buf = bytes.Buffer{}
 	}
 }

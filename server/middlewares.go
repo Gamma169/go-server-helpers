@@ -57,22 +57,26 @@ func AddRequesterIdHeaderMiddleware(router *mux.Router, requesterIdHeader string
 	)
 }
 
-func loggingMiddleware(next http.Handler, traceIdHeader string, debug bool) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestId := r.Header.Get(traceIdHeader)
-		if requestId == "" {
-			requestId = uuid.New().String()
-			r.Header.Set(traceIdHeader, requestId)
-		}
+func AddLoggingMiddleware(router *mux.Router, traceIdHeader string, debug bool) {
+	router.Use(
+		func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requestId := r.Header.Get(traceIdHeader)
+				if requestId == "" {
+					requestId = uuid.New().String()
+					r.Header.Set(traceIdHeader, requestId)
+				}
 
-		if debug {
-			log.Println(boldPrint, headerPrint, "Received:", r.RequestURI, "--", requestId, endPrint)
-		}
-		next.ServeHTTP(w, r)
-		// TODO: Prob implement custom responseWriter to be able to get status from request
-		// https://github.com/Gamma169/go-service-template/issues/2
-		if debug {
-			log.Println(boldPrint, headerPrint, "Finished:", r.RequestURI, "--", requestId, "--", "[]", endPrint)
-		}
-	})
+				if debug {
+					log.Println(boldPrint, headerPrint, "Received:", r.RequestURI, "--", requestId, endPrint)
+				}
+				next.ServeHTTP(w, r)
+				// TODO: Prob implement custom responseWriter to be able to get status from request
+				// https://github.com/Gamma169/go-service-template/issues/2
+				if debug {
+					log.Println(boldPrint, headerPrint, "Finished:", r.RequestURI, "--", requestId, "--", "[]", endPrint)
+				}
+			})
+		},
+	)
 }
