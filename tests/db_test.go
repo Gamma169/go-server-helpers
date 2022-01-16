@@ -1,7 +1,6 @@
 package tests
 
 import (
-	// "fmt"
 	"github.com/Gamma169/go-server-helpers/db"
 	"strings"
 	"testing"
@@ -10,6 +9,18 @@ import (
 /*********************************************
  * Tests
  * *******************************************/
+
+func TestInitDB(t *testing.T) {
+	t.Skip("TODO")
+}
+
+func TestCheckDBConnection(t *testing.T) {
+	t.Skip("TODO")
+}
+
+func TestValidateDBConnOrPanic(t *testing.T) {
+	t.Skip("TODO")
+}
 
 func TestAssignArrayPropertyFromString(t *testing.T) {
 
@@ -59,16 +70,4 @@ func TestCheckStructFieldsForInjection(t *testing.T) {
 	s.MyStr2 = "some semi;colon str"
 	err = db.CheckStructFieldsForInjection(s)
 	assert(t, err != nil, "should return error if a field has a semicolon")
-}
-
-func TestCheckDBConnection(t *testing.T) {
-	t.Skip("TODO")
-}
-
-func TestInitDB(t *testing.T) {
-	t.Skip("TODO")
-}
-
-func TestValidateDBConnOrPanic(t *testing.T) {
-	t.Skip("TODO")
 }

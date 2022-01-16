@@ -44,7 +44,7 @@ func InitDB(DB *sql.DB, debug bool) {
 }
 
 func CheckDBConnection(dbConn *sql.DB, maxTries int, secondsToWait int, debug bool) (err error) {
-	for tries := 0; ; tries++ {
+	for tries := 0; tries == 0 || err != nil; tries++ {
 		err = dbConn.Ping()
 
 		if err != nil {
