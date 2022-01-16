@@ -12,12 +12,12 @@ const headerPrint = "\033[95m"
 const endPrint = "\033[0m"
 
 // This adds CORS headers for all requests (to use if web server is running locally)
-func AddCORSMiddlewareAndEndpoint(router *mux.Router, requesterId string) {
+func AddCORSMiddlewareAndEndpoint(router *mux.Router, requesterIdHeader string) {
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, Session, "+requesterId)
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, Session, "+requesterIdHeader)
 			w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
 			next.ServeHTTP(w, r)
 		})
