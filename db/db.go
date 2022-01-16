@@ -12,24 +12,24 @@ import (
 	"time"
 )
 
-func InitDB(DB *sql.DB, debug bool) {
+func InitDB(envVarPrefix string, debug bool) (dbConn *sql.DB) {
 	if debug {
 		log.Println("Establishing connection with database")
 	}
 	var err error
 
-	dbURL := envs.GetOptionalEnv("DATABASE_URL", "")
+	dbURL := envs.GetOptionalEnv(envVarPrefix+"DATABASE_URL", "")
 	if dbURL != "" {
-		DB, err = sql.Open("postgres", dbURL)
+		dbConn, err = sql.Open("postgres", dbURL)
 	} else {
-		DB, err = sql.Open("postgres",
+		dbConn, err = sql.Open("postgres",
 			fmt.Sprintf("user='%s' password='%s' dbname='%s' host='%s' port=%s sslmode=%s",
-				envs.GetRequiredEnv("DATABASE_USER"),
-				envs.GetOptionalEnv("DATABASE_PASSWORD", ""),
-				envs.GetRequiredEnv("DATABASE_NAME"),
-				envs.GetRequiredEnv("DATABASE_HOST"),
-				envs.GetOptionalEnv("DATABASE_PORT", "5432"),
-				envs.GetOptionalEnv("SSL_MODE", "disable")))
+				envs.GetRequiredEnv(envVarPrefix+"DATABASE_USER"),
+				envs.GetOptionalEnv(envVarPrefix+"DATABASE_PASSWORD", ""),
+				envs.GetRequiredEnv(envVarPrefix+"DATABASE_NAME"),
+				envs.GetRequiredEnv(envVarPrefix+"DATABASE_HOST"),
+				envs.GetOptionalEnv(envVarPrefix+"DATABASE_PORT", "5432"),
+				envs.GetOptionalEnv(envVarPrefix+"SSL_MODE", "disable")))
 	}
 
 	if err != nil {
@@ -37,10 +37,11 @@ func InitDB(DB *sql.DB, debug bool) {
 		panic(err)
 	}
 
-	ValidateDBConnOrPanic(DB, debug)
+	ValidateDBConnOrPanic(dbConn, debug)
 	if debug {
 		log.Println("Connection sucessfully established")
 	}
+	return
 }
 
 func CheckDBConnection(dbConn *sql.DB, maxTries int, secondsToWait int, debug bool) (err error) {
@@ -49,7 +50,6 @@ func CheckDBConnection(dbConn *sql.DB, maxTries int, secondsToWait int, debug bo
 
 		if err != nil {
 			if tries > maxTries-1 {
-
 				return err
 			}
 			if debug {
