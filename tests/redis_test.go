@@ -8,10 +8,14 @@ import (
  * Tests
  * *******************************************/
 
-func TestSetupAndRunServer(t *testing.T) {
+func TestInitRedis(t *testing.T) {
 	t.Skip("TODO")
 }
 
-func TestWalkRouter(t *testing.T) {
+func TestCheckRedisConnection(t *testing.T) {
+	t.Skip("TODO")
+}
+
+func TestValidateRedisConnOrPanic(t *testing.T) {
 	t.Skip("TODO")
 }

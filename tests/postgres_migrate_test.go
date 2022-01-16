@@ -8,6 +8,6 @@ import (
  * Tests
  * *******************************************/
 
-func InitMigrations(t *testing.T) {
+func TestInitPostgresMigrations(t *testing.T) {
 	t.Skip("TODO")
 }

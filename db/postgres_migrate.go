@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func InitMigrations(dbConn *sql.DB, maxMsToWait int, isRunningLocally bool, debug bool) {
+func InitPostgresMigrations(dbConn *sql.DB, maxMsToWait int, isRunningLocally bool, debug bool) {
 	if debug {
 		log.Println("Doing Migrations")
 	}

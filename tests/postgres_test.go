@@ -12,7 +12,7 @@ import (
 
 // TODO: look into using this library?  Unfortunately it's old and possibly stale
 // https://github.com/erikstmartin/go-testdb
-func TestInitDB(t *testing.T) {
+func TestInitPostgres(t *testing.T) {
 	t.Skip("TODO")
 }
 

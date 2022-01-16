@@ -19,6 +19,8 @@ type InputObject interface {
  * Pre-process + Read Inputs
  * *******************************************/
 
+// Be sure to pass in pointer to InputObject
+// Usage:  PreProcessInput(&model, 500, w, r, fn)
 func PreProcessInput(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request, unmarshalFn func(interface{}, *http.Request) error) error {
 
 	max := 524288

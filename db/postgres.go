@@ -9,12 +9,11 @@ import (
 	"log"
 	"reflect"
 	"strings"
-	"time"
 )
 
-func InitDB(envVarPrefix string, debug bool) (dbConn *sql.DB) {
+func InitPostgres(envVarPrefix string, debug bool) (dbConn *sql.DB) {
 	if debug {
-		log.Println("Establishing connection with database")
+		log.Println("Establishing connection with postgres database")
 	}
 	var err error
 
@@ -44,21 +43,8 @@ func InitDB(envVarPrefix string, debug bool) (dbConn *sql.DB) {
 	return
 }
 
-func CheckDBConnection(dbConn *sql.DB, maxTries int, secondsToWait int, debug bool) (err error) {
-	for tries := 0; tries == 0 || err != nil; tries++ {
-		err = dbConn.Ping()
-
-		if err != nil {
-			if tries > maxTries-1 {
-				return err
-			}
-			if debug {
-				log.Println(fmt.Sprintf("Error: Could not connect to DB -- trying again in %d seconds", secondsToWait))
-			}
-			time.Sleep(time.Duration(secondsToWait) * time.Second)
-		}
-	}
-	return
+func CheckDBConnection(dbConn *sql.DB, maxTries int, secondsToWait int, debug bool) error {
+	return CheckAndRetry(dbConn.Ping, maxTries, secondsToWait, debug)
 }
 
 func ValidateDBConnOrPanic(dbConn *sql.DB, debug bool) {
