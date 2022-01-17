@@ -11,11 +11,14 @@ import (
 	"strings"
 )
 
-func CheckRequiredPostgresEnvs() {
-	if envs.GetOptionalEnv("DATABASE_URL", "") == "" {
-		envs.GetRequiredEnv("DATABASE_NAME")
-		envs.GetRequiredEnv("DATABASE_HOST")
-		envs.GetRequiredEnv("DATABASE_USER")
+func CheckRequiredPostgresEnvs(envVarPrefix string) {
+	// Not sure if I should use the getOptionalEnv function here or just os.LookupEnv
+	// Because if I use getOptionalEnv and it doesn't exist, we output the logs for it twice
+	// I think that's fine, but I need to think on it
+	if envs.GetOptionalEnv(envVarPrefix+"DATABASE_URL", "") == "" {
+		envs.GetRequiredEnv(envVarPrefix + "DATABASE_NAME")
+		envs.GetRequiredEnv(envVarPrefix + "DATABASE_HOST")
+		envs.GetRequiredEnv(envVarPrefix + "DATABASE_USER")
 	}
 }
 
