@@ -49,8 +49,9 @@ func equals(tb testing.TB, exp, act interface{}) {
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
+// Generates a randome string of random length of at least 1
 func randString(n int) string {
-	b := make([]rune, n)
+	b := make([]rune, rand.Intn(n)+1)
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
