@@ -9,6 +9,8 @@ import (
 
 const ContentTypeHeader = "Content-Type"
 const AcceptContentTypeHeader = "Accept"
+
+
 const JSONContentType = "application/json"
 
 type InputObject interface {
@@ -23,7 +25,7 @@ type InputObject interface {
 // Usage:  PreProcessInput(&model, 500, w, r, fn)
 func PreProcessInput(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request, unmarshalFn func(interface{}, *http.Request) error) error {
 
-	max := 524288
+    max := 524288
 	if maxBytes != 0 {
 		max = maxBytes
 	}
