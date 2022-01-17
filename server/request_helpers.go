@@ -36,6 +36,8 @@ func PreProcessInput(input InputObject, maxBytes int, w http.ResponseWriter, r *
 	return input.Validate()
 }
 
+// Common convenience functions
+
 func PreProcessInputFromHeaders(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request) error {
 	return PreProcessInput(input, maxBytes, w, r, UnmarshalObjectFromHeaders)
 }
@@ -49,6 +51,8 @@ func PreProcessInputFromJSONAPI(input InputObject, maxBytes int, w http.Response
 		return jsonapi.UnmarshalPayload(r.Body, &input)
 	})
 }
+
+// Unmarshalling logic
 
 func UnmarshalObjectFromHeaders(input interface{}, r *http.Request) error {
 	header := r.Header.Get(ContentTypeHeader)
@@ -85,10 +89,21 @@ func SendErrorOnError(err error, status int, w http.ResponseWriter, r *http.Requ
 
 /*********************************************
  * Standard Handlers
+ *
+ * These ones are the trickiest to use since they're the most abstracted
+ * Pass in functions (or use the convenience versions in this file) in order to reduce boilerplate code
+ *
+ * They work on the idea that every handler has 3 parts-
+ *   - Preprocess (read input)
+ *   - Business Logic
+ *   - Response
+ * Pass in functions that do each of the three things, and only focus on actual code
+ *
+ * NOTE: Be sure to pass in a pointer or else they won't work
  * *******************************************/
 
 func StandardRequestHandler(
-	inputStruct InputObject,
+	inputPtr InputObject,
 	maxBytes int,
 	preprocessFunc func(InputObject, int, http.ResponseWriter, *http.Request) error,
 	logicFunc func(InputObject, *http.Request) (interface{}, int, error),
@@ -102,14 +117,14 @@ func StandardRequestHandler(
 
 	defer func() { SendErrorOnError(err, errStatus, w, r, logError) }()
 
-	if err = preprocessFunc(inputStruct, maxBytes, w, r); err != nil {
+	if err = preprocessFunc(inputPtr, maxBytes, w, r); err != nil {
 		errStatus = http.StatusBadRequest
 		return
 	}
 
 	var status int
 	var outputStruct interface{}
-	if outputStruct, status, err = logicFunc(inputStruct, r); err != nil {
+	if outputStruct, status, err = logicFunc(inputPtr, r); err != nil {
 		errStatus = status
 		return
 	}
@@ -118,7 +133,7 @@ func StandardRequestHandler(
 }
 
 func StandardJSONRequestHandler(
-	inputStruct InputObject,
+	inputPtr InputObject,
 	maxBytes int,
 	logicFunc func(InputObject, *http.Request) (interface{}, int, error),
 	w http.ResponseWriter,
@@ -130,18 +145,18 @@ func StandardJSONRequestHandler(
 	jsonRespFuncWrapper := func(input interface{}, status int, w http.ResponseWriter, r *http.Request) error {
 		return WriteModelToResponseJSON(input, status, w)
 	}
-	StandardRequestHandler(inputStruct, maxBytes, PreProcessInputFromJSON, logicFunc, jsonRespFuncWrapper, w, r, logError)
+	StandardRequestHandler(inputPtr, maxBytes, PreProcessInputFromJSON, logicFunc, jsonRespFuncWrapper, w, r, logError)
 }
 
 func StandardAgnosticRequestHandler(
-	inputStruct InputObject,
+	inputPtr InputObject,
 	maxBytes int,
 	logicFunc func(InputObject, *http.Request) (interface{}, int, error),
 	w http.ResponseWriter,
 	r *http.Request,
 	logError func(error, *http.Request),
 ) {
-	StandardRequestHandler(inputStruct, maxBytes, PreProcessInputFromHeaders, logicFunc, WriteModelToResponseFromHeaders, w, r, logError)
+	StandardRequestHandler(inputPtr, maxBytes, PreProcessInputFromHeaders, logicFunc, WriteModelToResponseFromHeaders, w, r, logError)
 }
 
 /*********************************************
@@ -169,4 +184,10 @@ func WriteModelToResponseFromHeaders(dataToSend interface{}, status int, w http.
 		return WriteModelToResponseJSONAPI(dataToSend, status, w)
 	}
 	return WriteModelToResponseJSON(dataToSend, status, w)
+}
+
+// Convenience function so you don't have to write your own wrapper function if you don't want to return NoContent
+func WriteNoContentToResponse(dataToSend interface{}, status int, w http.ResponseWriter, r *http.Request) error {
+	w.WriteHeader(http.StatusNoContent)
+	return nil
 }

@@ -18,7 +18,7 @@ import (
  * Helpers
  * *******************************************/
 type testStruct struct {
-	Id                 string `json:"id" jsonapi:"primary,model"`
+	Id                 string `json:"id"   jsonapi:"primary,model"`
 	Name               string `json:"name" jsonapi:"attr,name"`
 	callWhenValdidated func()
 }
@@ -181,9 +181,9 @@ func TestStandardRequestHandler(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	var statusRecieved int
-	var responceReceived interface{}
+	var responseReceived interface{}
 	responseFunc := func(i interface{}, status int, w http.ResponseWriter, r *http.Request) error {
-		responceReceived = i
+		responseReceived = i
 		statusRecieved = status
 		recorder.Code = status
 		return nil
@@ -209,10 +209,10 @@ func TestStandardRequestHandler(t *testing.T) {
 		logFn,
 	)
 
-	equals(t, val, valReceived)
+	assert(t, val == valReceived, "Assert that logic function has been called")
 	equals(t, max, maxReceived)
 	assert(t, preProcessCalled, "Should have called PreprocessFunc")
-	equals(t, logicOutput, responceReceived)
+	equals(t, logicOutput, responseReceived)
 	equals(t, statusToReturn, statusRecieved)
 	equals(t, statusToReturn, recorder.Code)
 	assert(t, !logFnCalled, "Should not have called log fn")
@@ -260,7 +260,7 @@ func TestStandardRequestHandler(t *testing.T) {
 
 	// FUNCTION TO TEST:
 	server.StandardRequestHandler(
-		ts,
+		&ts,
 		max,
 		preprocessFunc,
 		badLogicFunc,
@@ -276,6 +276,107 @@ func TestStandardRequestHandler(t *testing.T) {
 	buf.ReadFrom(recorder.Result().Body)
 	bodyStr = buf.String()
 	equals(t, errStr+"\n", bodyStr)
+}
+
+// This test checks the AgnosticHandler, but effectively tests everything else under the hood
+// Acts as a kind of integration test
+// If broken, fix any other lower-level test
+func TestStandardAgnosticRequestHandler(t *testing.T) {
+
+	testCases := []struct {
+		id     string
+		name   string
+		header string
+		status int
+		fmtStr string
+	}{
+		{uuid.New().String(), randString(60), server.JSONContentType, 200, jsonFmt},
+		// {uuid.New().String(), randString(60), server.JSONContentType, 201, jsonFmt},
+		// {uuid.New().String(), randString(60), jsonapi.MediaType, 200, jsonapiFmt},
+		// {uuid.New().String(), randString(60), jsonapi.MediaType, 201, jsonapiFmt},
+		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
+		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
+		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonapiFmt},
+		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonapiFmt},
+	}
+
+	for _, tc := range testCases {
+
+		val := randString(60)
+		var valReceived string
+		ts := testStruct{
+			callWhenValdidated: func() {
+				valReceived = val
+			},
+		}
+
+		outputStruct := testStruct{}
+		populateOutput := func(id, name string) {
+			outputStruct.Id = id + "_returned"
+			outputStruct.Name = name + "_returned"
+		}
+		var idSet string
+		var nameSet string
+		// Calling validate in logic in order to test server.InputObject properly
+		logicFunc := func(i server.InputObject, r *http.Request) (interface{}, int, error) {
+			i.Validate()
+			tsType := i.(*testStruct)
+			idSet = tsType.Id
+			nameSet = tsType.Name
+			populateOutput(tsType.Id, tsType.Name)
+			return outputStruct, tc.status, nil
+		}
+
+		bodyStr := fmt.Sprintf(tc.fmtStr, tc.id, tc.name)
+		req, err := http.NewRequest("GET", "/"+randString(25), strings.NewReader(bodyStr))
+		ok(t, err)
+		req.Header.Add(server.ContentTypeHeader, tc.header)
+
+		recorder := httptest.NewRecorder()
+
+		logFnCalled := false
+		logFn := func(e error, r *http.Request) {
+			logFnCalled = true
+		}
+
+		// FUNCTION TO TEST:
+		server.StandardAgnosticRequestHandler(
+			&ts,
+			rand.Intn(10000)+1000,
+			logicFunc,
+			recorder,
+			req,
+			logFn,
+		)
+
+		// Check status first because it is easiest to diagnose
+		// (like if preprocess inputs fails)
+		equals(t, tc.status, recorder.Code)
+
+		// Checks that vals have been assigned in logic func
+		equals(t, tc.id, idSet)
+		equals(t, tc.name, nameSet)
+		// Checks vals have been assiged at the end of the func
+		equals(t, tc.id, ts.Id)
+		equals(t, tc.name, ts.Name)
+		// Checks logic func was called
+		assert(t, val == valReceived, "Assert that logic function has been called")
+
+		equals(t, tc.header, recorder.Result().Header.Get(server.ContentTypeHeader))
+		assert(t, !logFnCalled, "Should not have called log fn")
+
+		expectedBodyStr := fmt.Sprintf(tc.fmtStr, outputStruct.Id, outputStruct.Name)
+		expectedBodyStr = strings.ReplaceAll(expectedBodyStr, " ", "")
+		expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\n", "")
+		expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\t", "")
+
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(recorder.Result().Body)
+		bodyStr = buf.String()
+
+		equals(t, expectedBodyStr+"\n", bodyStr)
+	}
+
 }
 
 /*********************************************
