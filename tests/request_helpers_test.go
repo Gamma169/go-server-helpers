@@ -7,6 +7,7 @@ import (
 	"github.com/Gamma169/go-server-helpers/server"
 	"github.com/google/jsonapi"
 	"github.com/google/uuid"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -51,7 +52,11 @@ func TestPreProcessInput(t *testing.T) {
 	req, err := http.NewRequest("GET", "/"+randString(25), nil)
 	ok(t, err)
 
-	unmarshalFn := func(interface{}, *http.Request) error { return nil }
+	unmarshalFnCalled := false
+	unmarshalFn := func(interface{}, *http.Request) error {
+		unmarshalFnCalled = true
+		return nil
+	}
 
 	validateCalled := false
 	ts := testStruct{
@@ -63,6 +68,13 @@ func TestPreProcessInput(t *testing.T) {
 	err = server.PreProcessInput(ts, 500, httptest.NewRecorder(), req, unmarshalFn)
 	ok(t, err)
 	assert(t, validateCalled, "Should call Validate function when processed")
+	assert(t, unmarshalFnCalled, "Should call unmarshalFn passed in")
+
+	// Should return nil and not call unmarshall func if provided nil input
+	unmarshalFnCalled = false
+	err = server.PreProcessInput(nil, 0, httptest.NewRecorder(), req, unmarshalFn)
+	ok(t, err)
+	assert(t, !unmarshalFnCalled, "Should NOT call unmarshalFn when input is nil")
 }
 
 func TestUnmarshalObjectFromHeaders(t *testing.T) {
@@ -176,7 +188,7 @@ func TestStandardRequestHandler(t *testing.T) {
 	// Calling validate in logic in order to test server.InputObject properly
 	logicFunc := func(i server.InputObject, r *http.Request) (interface{}, int, error) {
 		i.Validate()
-		return logicOutput, statusToReturn, nil
+		return &logicOutput, statusToReturn, nil
 	}
 
 	recorder := httptest.NewRecorder()
@@ -198,7 +210,7 @@ func TestStandardRequestHandler(t *testing.T) {
 	}
 
 	// FUNCTION TO TEST:
-	server.StandardRequestHandler(
+	err = server.StandardRequestHandler(
 		ts,
 		max,
 		preprocessFunc,
@@ -208,11 +220,17 @@ func TestStandardRequestHandler(t *testing.T) {
 		req,
 		logFn,
 	)
+	ok(t, err)
 
 	assert(t, val == valReceived, "Assert that logic function has been called")
 	equals(t, max, maxReceived)
 	assert(t, preProcessCalled, "Should have called PreprocessFunc")
-	equals(t, logicOutput, responseReceived)
+
+	// If I change test to return a pointer
+	equals(t, logicOutput, *(responseReceived.(*string)))
+	// If I change test to be not a pointer
+	// equals(t, logicOutput, responseReceived)
+
 	equals(t, statusToReturn, statusRecieved)
 	equals(t, statusToReturn, recorder.Code)
 	assert(t, !logFnCalled, "Should not have called log fn")
@@ -227,7 +245,7 @@ func TestStandardRequestHandler(t *testing.T) {
 	}
 
 	// FUNCTION TO TEST:
-	server.StandardRequestHandler(
+	err = server.StandardRequestHandler(
 		ts,
 		max,
 		badPreprocessFunc,
@@ -239,6 +257,8 @@ func TestStandardRequestHandler(t *testing.T) {
 	)
 
 	equals(t, 400, recorder.Code)
+	assert(t, err != nil, "Should return the error")
+	equals(t, errStr, err.Error())
 	assert(t, logFnCalled, "Should call error logfn when errored")
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(recorder.Result().Body)
@@ -249,6 +269,7 @@ func TestStandardRequestHandler(t *testing.T) {
 
 	logFnCalled = false
 	statusRecieved = 0
+	err = nil
 	statusToReturn = rand.Intn(401) + 100
 	// Important to use new recorder
 	recorder = httptest.NewRecorder()
@@ -259,7 +280,7 @@ func TestStandardRequestHandler(t *testing.T) {
 	}
 
 	// FUNCTION TO TEST:
-	server.StandardRequestHandler(
+	err = server.StandardRequestHandler(
 		&ts,
 		max,
 		preprocessFunc,
@@ -269,6 +290,9 @@ func TestStandardRequestHandler(t *testing.T) {
 		req,
 		logFn,
 	)
+
+	assert(t, err != nil, "Should return the error")
+	equals(t, errStr, err.Error())
 
 	equals(t, statusToReturn, recorder.Code)
 	assert(t, logFnCalled, "Should call error logfn when errored")
@@ -291,13 +315,13 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 		fmtStr string
 	}{
 		{uuid.New().String(), randString(60), server.JSONContentType, 200, jsonFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, 201, jsonFmt},
-		// {uuid.New().String(), randString(60), jsonapi.MediaType, 200, jsonapiFmt},
-		// {uuid.New().String(), randString(60), jsonapi.MediaType, 201, jsonapiFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonapiFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonapiFmt},
+		{uuid.New().String(), randString(60), server.JSONContentType, 201, jsonFmt},
+		{uuid.New().String(), randString(60), jsonapi.MediaType, 200, jsonapiFmt},
+		{uuid.New().String(), randString(60), jsonapi.MediaType, 201, jsonapiFmt},
+		{uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
+		{uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
+		{uuid.New().String(), randString(60), jsonapi.MediaType, rand.Intn(401) + 100, jsonapiFmt},
+		{uuid.New().String(), randString(60), jsonapi.MediaType, rand.Intn(401) + 100, jsonapiFmt},
 	}
 
 	for _, tc := range testCases {
@@ -324,7 +348,8 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 			idSet = tsType.Id
 			nameSet = tsType.Name
 			populateOutput(tsType.Id, tsType.Name)
-			return outputStruct, tc.status, nil
+			// Must return pointer in logif function
+			return &outputStruct, tc.status, nil
 		}
 
 		bodyStr := fmt.Sprintf(tc.fmtStr, tc.id, tc.name)
@@ -336,18 +361,20 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 
 		logFnCalled := false
 		logFn := func(e error, r *http.Request) {
+			t.Log(e)
 			logFnCalled = true
 		}
 
 		// FUNCTION TO TEST:
-		server.StandardAgnosticRequestHandler(
+		err = server.StandardAgnosticRequestHandler(
 			&ts,
-			rand.Intn(10000)+1000,
+			rand.Intn(10000)+2000,
 			logicFunc,
 			recorder,
 			req,
 			logFn,
 		)
+		ok(t, err)
 
 		// Check status first because it is easiest to diagnose
 		// (like if preprocess inputs fails)
@@ -374,7 +401,7 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 		buf.ReadFrom(recorder.Result().Body)
 		bodyStr = buf.String()
 
-		equals(t, expectedBodyStr+"\n", bodyStr)
+		equals(t, expectedBodyStr, bodyStr)
 	}
 
 }
@@ -383,7 +410,7 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
  * Test Writing Outputs
  * *******************************************/
 
-// TODO: This function does not test the jsonapi accept header type
+// TODO: This function does not test the jsonapi ACCEPT header only the Content-Type header
 func TestWriteModelToResponseFromHeaders(t *testing.T) {
 	testCases := []struct {
 		id     string
@@ -398,6 +425,9 @@ func TestWriteModelToResponseFromHeaders(t *testing.T) {
 		{uuid.New().String(), randString(60), jsonapi.MediaType, 200, jsonapiFmt},
 		{uuid.New().String(), randString(60), server.JSONContentType, 400, jsonFmt},
 		{uuid.New().String(), randString(60), server.JSONContentType, 500, jsonFmt},
+		// Testcase for nil pointer
+		{"", "", "", rand.Intn(401) + 100, ""},
+		{"", "", "", rand.Intn(401) + 100, ""},
 	}
 
 	for _, tc := range testCases {
@@ -413,22 +443,61 @@ func TestWriteModelToResponseFromHeaders(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 
-		err = server.WriteModelToResponseFromHeaders(&ts, tc.status, recorder, req)
-		ok(t, err)
+		if tc.id == "" {
+			err = server.WriteModelToResponseFromHeaders(nil, tc.status, recorder, req)
+			ok(t, err)
 
-		equals(t, tc.status, recorder.Code)
-		equals(t, tc.header, recorder.Result().Header.Get(server.ContentTypeHeader))
+			equals(t, tc.status, recorder.Code)
+		} else {
+			err = server.WriteModelToResponseFromHeaders(&ts, tc.status, recorder, req)
+			ok(t, err)
 
-		expectedBodyStr := fmt.Sprintf(tc.fmtStr, tc.id, tc.name)
-		expectedBodyStr = strings.ReplaceAll(expectedBodyStr, " ", "")
-		expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\n", "")
-		expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\t", "")
+			equals(t, tc.status, recorder.Code)
+			equals(t, tc.header, recorder.Result().Header.Get(server.ContentTypeHeader))
 
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(recorder.Result().Body)
-		bodyStr := buf.String()
+			expectedBodyStr := fmt.Sprintf(tc.fmtStr, tc.id, tc.name)
+			expectedBodyStr = strings.ReplaceAll(expectedBodyStr, " ", "")
+			expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\n", "")
+			expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\t", "")
 
-		equals(t, expectedBodyStr+"\n", bodyStr)
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(recorder.Result().Body)
+			bodyStr := buf.String()
+
+			equals(t, expectedBodyStr, bodyStr)
+		}
 	}
 
+}
+
+func TestCheckJSONMarshalAndWrite(t *testing.T) {
+	testCases := []struct {
+		data       interface{}
+		status     int
+		expected   string
+		shouldPass bool
+	}{
+		{"some-val", 200, `"some-val"`, true},
+		{"another-val", 201, `"another-val"`, true},
+		{4, rand.Intn(401) + 100, "4", true},
+		{map[string]interface{}{"foo": "bar", "baz": 6}, rand.Intn(401) + 100, `{"baz":6,"foo":"bar"}`, true},
+		{0.254, rand.Intn(401) + 100, "0.254", true},
+		{0.254, rand.Intn(401) + 100, "0.254", true},
+		{math.Inf(1), 0, "", false},
+		// Prob can add more failing cases
+	}
+
+	for _, tc := range testCases {
+		recorder := httptest.NewRecorder()
+		err := server.CheckJSONMarshalAndWrite(tc.data, tc.status, recorder)
+		if tc.shouldPass {
+			ok(t, err)
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(recorder.Result().Body)
+			bodyStr := buf.String()
+			equals(t, tc.expected, bodyStr)
+		} else {
+			assert(t, err != nil, "Should return err if json marshal error")
+		}
+	}
 }

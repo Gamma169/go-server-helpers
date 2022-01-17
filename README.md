@@ -97,3 +97,7 @@ gofmt -w .
 ```Shell
 gofmt -w . && go get ./... && go build ./... && go test -v ./tests
 ```
+
+## Contributing
+
+Fork, Change, Pull Request with tests.  Tests **must** be added or updated with any external change
