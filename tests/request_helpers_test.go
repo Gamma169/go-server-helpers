@@ -188,7 +188,7 @@ func TestStandardRequestHandler(t *testing.T) {
 	// Calling validate in logic in order to test server.InputObject properly
 	logicFunc := func(i server.InputObject, r *http.Request) (interface{}, int, error) {
 		i.Validate()
-		return logicOutput, statusToReturn, nil
+		return &logicOutput, statusToReturn, nil
 	}
 
 	recorder := httptest.NewRecorder()
@@ -210,7 +210,7 @@ func TestStandardRequestHandler(t *testing.T) {
 	}
 
 	// FUNCTION TO TEST:
-	server.StandardRequestHandler(
+	err = server.StandardRequestHandler(
 		ts,
 		max,
 		preprocessFunc,
@@ -220,14 +220,17 @@ func TestStandardRequestHandler(t *testing.T) {
 		req,
 		logFn,
 	)
+	ok(t, err)
 
 	assert(t, val == valReceived, "Assert that logic function has been called")
 	equals(t, max, maxReceived)
 	assert(t, preProcessCalled, "Should have called PreprocessFunc")
 
-	equals(t, logicOutput, responseReceived)
-	// If I change internals back to passing in a pointer
-	// equals(t, logicOutput, *(responseReceived.(*interface{})))
+	// If I change test to return a pointer
+	equals(t, logicOutput, *(responseReceived.(*string)))
+	// If I change test to be not a pointer
+	// equals(t, logicOutput, responseReceived)
+
 	equals(t, statusToReturn, statusRecieved)
 	equals(t, statusToReturn, recorder.Code)
 	assert(t, !logFnCalled, "Should not have called log fn")
@@ -242,7 +245,7 @@ func TestStandardRequestHandler(t *testing.T) {
 	}
 
 	// FUNCTION TO TEST:
-	server.StandardRequestHandler(
+	err = server.StandardRequestHandler(
 		ts,
 		max,
 		badPreprocessFunc,
@@ -254,6 +257,8 @@ func TestStandardRequestHandler(t *testing.T) {
 	)
 
 	equals(t, 400, recorder.Code)
+	assert(t, err != nil, "Should return the error")
+	equals(t, errStr, err.Error())
 	assert(t, logFnCalled, "Should call error logfn when errored")
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(recorder.Result().Body)
@@ -264,6 +269,7 @@ func TestStandardRequestHandler(t *testing.T) {
 
 	logFnCalled = false
 	statusRecieved = 0
+	err = nil
 	statusToReturn = rand.Intn(401) + 100
 	// Important to use new recorder
 	recorder = httptest.NewRecorder()
@@ -274,7 +280,7 @@ func TestStandardRequestHandler(t *testing.T) {
 	}
 
 	// FUNCTION TO TEST:
-	server.StandardRequestHandler(
+	err = server.StandardRequestHandler(
 		&ts,
 		max,
 		preprocessFunc,
@@ -284,6 +290,9 @@ func TestStandardRequestHandler(t *testing.T) {
 		req,
 		logFn,
 	)
+
+	assert(t, err != nil, "Should return the error")
+	equals(t, errStr, err.Error())
 
 	equals(t, statusToReturn, recorder.Code)
 	assert(t, logFnCalled, "Should call error logfn when errored")
@@ -305,8 +314,8 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 		status int
 		fmtStr string
 	}{
-		// {uuid.New().String(), randString(60), server.JSONContentType, 200, jsonFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, 201, jsonFmt},
+		{uuid.New().String(), randString(60), server.JSONContentType, 200, jsonFmt},
+		{uuid.New().String(), randString(60), server.JSONContentType, 201, jsonFmt},
 		{uuid.New().String(), randString(60), jsonapi.MediaType, 200, jsonapiFmt},
 		{uuid.New().String(), randString(60), jsonapi.MediaType, 201, jsonapiFmt},
 		{uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
@@ -339,7 +348,8 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 			idSet = tsType.Id
 			nameSet = tsType.Name
 			populateOutput(tsType.Id, tsType.Name)
-			return outputStruct, tc.status, nil
+			// Must return pointer in logif function
+			return &outputStruct, tc.status, nil
 		}
 
 		bodyStr := fmt.Sprintf(tc.fmtStr, tc.id, tc.name)
@@ -356,7 +366,7 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 		}
 
 		// FUNCTION TO TEST:
-		server.StandardAgnosticRequestHandler(
+		err = server.StandardAgnosticRequestHandler(
 			&ts,
 			rand.Intn(10000)+2000,
 			logicFunc,
@@ -364,6 +374,7 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 			req,
 			logFn,
 		)
+		ok(t, err)
 
 		// Check status first because it is easiest to diagnose
 		// (like if preprocess inputs fails)
@@ -399,7 +410,7 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
  * Test Writing Outputs
  * *******************************************/
 
-// TODO: This function does not test the jsonapi accept header type
+// TODO: This function does not test the jsonapi ACCEPT header only the Content-Type header
 func TestWriteModelToResponseFromHeaders(t *testing.T) {
 	testCases := []struct {
 		id     string
@@ -414,6 +425,9 @@ func TestWriteModelToResponseFromHeaders(t *testing.T) {
 		{uuid.New().String(), randString(60), jsonapi.MediaType, 200, jsonapiFmt},
 		{uuid.New().String(), randString(60), server.JSONContentType, 400, jsonFmt},
 		{uuid.New().String(), randString(60), server.JSONContentType, 500, jsonFmt},
+		// Testcase for nil pointer
+		{"", "", "", rand.Intn(401) + 100, ""},
+		{"", "", "", rand.Intn(401) + 100, ""},
 	}
 
 	for _, tc := range testCases {
@@ -429,22 +443,29 @@ func TestWriteModelToResponseFromHeaders(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 
-		err = server.WriteModelToResponseFromHeaders(&ts, tc.status, recorder, req)
-		ok(t, err)
+		if tc.id == "" {
+			err = server.WriteModelToResponseFromHeaders(nil, tc.status, recorder, req)
+			ok(t, err)
 
-		equals(t, tc.status, recorder.Code)
-		equals(t, tc.header, recorder.Result().Header.Get(server.ContentTypeHeader))
+			equals(t, tc.status, recorder.Code)
+		} else {
+			err = server.WriteModelToResponseFromHeaders(&ts, tc.status, recorder, req)
+			ok(t, err)
 
-		expectedBodyStr := fmt.Sprintf(tc.fmtStr, tc.id, tc.name)
-		expectedBodyStr = strings.ReplaceAll(expectedBodyStr, " ", "")
-		expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\n", "")
-		expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\t", "")
+			equals(t, tc.status, recorder.Code)
+			equals(t, tc.header, recorder.Result().Header.Get(server.ContentTypeHeader))
 
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(recorder.Result().Body)
-		bodyStr := buf.String()
+			expectedBodyStr := fmt.Sprintf(tc.fmtStr, tc.id, tc.name)
+			expectedBodyStr = strings.ReplaceAll(expectedBodyStr, " ", "")
+			expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\n", "")
+			expectedBodyStr = strings.ReplaceAll(expectedBodyStr, "\t", "")
 
-		equals(t, expectedBodyStr, bodyStr)
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(recorder.Result().Body)
+			bodyStr := buf.String()
+
+			equals(t, expectedBodyStr, bodyStr)
+		}
 	}
 
 }

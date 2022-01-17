@@ -5,10 +5,8 @@ import (
 	"errors"
 	"github.com/google/jsonapi"
 	"net/http"
-	"reflect"
+	// "reflect"
 )
-
-import "log"
 
 const ContentTypeHeader = "Content-Type"
 const AcceptContentTypeHeader = "Accept"
@@ -121,6 +119,7 @@ func SendErrorOnError(err error, status int, w http.ResponseWriter, r *http.Requ
 // So try to make sure that any errors the function returns are actual bad user input errors
 // and not any other kind of logical error (ex, a failed http request in the func *should* probably return 500, but will not)
 // If you REALLY want to control the error, use an empty `preprocessFunc` and put everything in the `logicFunc`
+// NOTE: logicFunc should return a POINTER to your struct instead of the struct or else things might not work right-- see comment in code
 func StandardRequestHandler(
 	inputPtr InputObject,
 	maxBytes int,
@@ -130,8 +129,7 @@ func StandardRequestHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 	logError func(error, *http.Request),
-) {
-	var err error
+) (err error) {
 	var errStatus = http.StatusInternalServerError
 
 	defer func() { SendErrorOnError(err, errStatus, w, r, logError) }()
@@ -141,14 +139,18 @@ func StandardRequestHandler(
 		return
 	}
 
+	// Note that  logicFunc can return anything, but it is best to only return a pointer for consistency
+	// jsonapi library requires a pointer or slice of pointers, so for consistency, I recommend only ever returning a pointer from the logicFunc
 	var status int
-	var outputStruct interface{}
-	if outputStruct, status, err = logicFunc(inputPtr, r); err != nil {
+	var outputStructPtr interface{}
+	if outputStructPtr, status, err = logicFunc(inputPtr, r); err != nil {
 		errStatus = status
 		return
 	}
 
-	err = responseFunc(outputStruct, status, w, r)
+	// Note that you can pass in anything to the responseFunc but that it is best to pass in a pointer
+	// or else jsonapi library will not work correctly (regular json library doesn't care)
+	return responseFunc(outputStructPtr, status, w, r)
 }
 
 func StandardJSONRequestHandler(
@@ -158,15 +160,16 @@ func StandardJSONRequestHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 	logError func(error, *http.Request),
-) {
+) (err error) {
 	// Note that the json write function below does not need the request
 	// So we wrap it in an anonymous function in order to fit the area 'StandardRequestHandler' expects
 	jsonRespFuncWrapper := func(input interface{}, status int, w http.ResponseWriter, r *http.Request) error {
 		return WriteModelToResponseJSON(input, status, w)
 	}
-	StandardRequestHandler(inputPtr, maxBytes, PreProcessInputFromJSON, logicFunc, jsonRespFuncWrapper, w, r, logError)
+	return StandardRequestHandler(inputPtr, maxBytes, PreProcessInputFromJSON, logicFunc, jsonRespFuncWrapper, w, r, logError)
 }
 
+// See notes on logic func in StandardRequestHandler-- must return a pointer to a struct or jsonapi library will not work right (json library doesn't care)
 func StandardAgnosticRequestHandler(
 	inputPtr InputObject,
 	maxBytes int,
@@ -174,8 +177,8 @@ func StandardAgnosticRequestHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 	logError func(error, *http.Request),
-) {
-	StandardRequestHandler(inputPtr, maxBytes, PreProcessInputFromHeaders, logicFunc, WriteModelToResponseFromHeaders, w, r, logError)
+) (err error) {
+	return StandardRequestHandler(inputPtr, maxBytes, PreProcessInputFromHeaders, logicFunc, WriteModelToResponseFromHeaders, w, r, logError)
 }
 
 /*********************************************
@@ -187,44 +190,23 @@ func WriteModelToResponseJSON(dataToSend interface{}, status int, w http.Respons
 	return CheckJSONMarshalAndWrite(dataToSend, status, w)
 }
 
+// Must use a pointer
 func WriteModelToResponseJSONAPI(dataToSend interface{}, status int, w http.ResponseWriter) (err error) {
 	w.Header().Set(ContentTypeHeader, jsonapi.MediaType)
 	var jsonAPIPayload jsonapi.Payloader
-	log.Println("ASDSD")
-	log.Println(dataToSend)
-	log.Println("QWWEQWE")
-	castVar := reflect.ValueOf(dataToSend)
-	log.Println(castVar)
-	log.Println(castVar.Type())
-	log.Println("POIOI")
-	// castVar = castVar.Convert(reflect.PtrTo(castVar.Type()))
-	log.Println(castVar)
-	log.Println(castVar.Type())
 
-	structData := reflect.PtrTo(castVar.Type())
-
-	// dv := reflect.ValueOf(dataToSend)
-
-	log.Println("ZXCZXC")
-
-	// log.Println(structData.Elem())
-
-	// t := reflect.TypeOf(dataToSend)
-	// for i := 0; i < t.NumField(); i++ {
-	// 	if t.Field(i).Type.Kind() == reflect.String {
-	// 		r := reflect.ValueOf(dataToSend)
-	// 		log.Println(reflect.Indirect(structData).Field(i), reflect.Indirect(r).Field(i).String())
-	// 		log.Println("===========")
-	// 	}
-	// }
-
-	if jsonAPIPayload, err = jsonapi.Marshal(structData); err != nil {
+	if jsonAPIPayload, err = jsonapi.Marshal(dataToSend); err != nil {
 		return
 	}
 	return CheckJSONMarshalAndWrite(jsonAPIPayload, status, w)
 }
 
+// See notes on jsonapi library-- must pass in in a POINTER to a struct or slice of pointers, or jsonapi library will not work right (json library doesn't care)
 func WriteModelToResponseFromHeaders(dataToSend interface{}, status int, w http.ResponseWriter, r *http.Request) error {
+	if dataToSend == nil {
+		w.WriteHeader(status)
+		return nil
+	}
 	header := r.Header.Get(ContentTypeHeader)
 	acceptHeader := r.Header.Get(AcceptContentTypeHeader)
 	if header == jsonapi.MediaType || acceptHeader == jsonapi.MediaType {
