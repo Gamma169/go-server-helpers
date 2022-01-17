@@ -103,11 +103,21 @@ func SendErrorOnError(err error, status int, w http.ResponseWriter, r *http.Requ
  *   - Response
  * Pass in functions that do each of the three things, and only focus on actual code
  *
+ * Please note that these functions can add a bit of "understanding" overhead to a program
+ * Using them can make your code difficult to understand and may ADD to your code instead of remove from it
+ * They are most useful if your code has many models that act similarly and need to all be handled similarly
+ * So you can write one `logicFunc` and pass in different models and not worry about things
+ * If many `preprocessFunc`s or logicFunc`s or `responseFunc`s  are needed, it may be best to just write out a handler yourself
+ *
  * NOTE: Be sure to pass in a pointer to inputPtr or else they won't work
  * Can pass in <nil> to inputPtr in order to avoid calling preprocessFunc
  * (useful for json handler that outputs json but doesn't require input)
  * *******************************************/
 
+// Note that preprocessFunc returns a 400 Bad Request on ANY error
+// So try to make sure that any errors the function returns are actual bad user input errors
+// and not any other kind of logical error (ex, a failed http request in the func *should* probably return 500, but will not)
+// If you REALLY want to control the error, use an empty `preprocessFunc` and put everything in the `logicFunc`
 func StandardRequestHandler(
 	inputPtr InputObject,
 	maxBytes int,
@@ -222,6 +232,9 @@ func WriteNoContentToResponse(dataToSend interface{}, status int, w http.Respons
 	NOTE:  The `w.Write` call can also fail (due to network isues for example )
 	in which case the server will not respond with the correct status code regardless (because it cannot write ANY status code)
 	But we still capture the error to bubble it up and do any logging/handling on the server side
+
+	Info comes from:
+	https://stackoverflow.com/questions/49483111/http-override-http-header-code-in-golang-while-there-is-an-error-in-json-encodin
 */
 func CheckJSONMarshalAndWrite(data interface{}, status int, w http.ResponseWriter) (err error) {
 	var jsonData []byte

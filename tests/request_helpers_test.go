@@ -7,6 +7,7 @@ import (
 	"github.com/Gamma169/go-server-helpers/server"
 	"github.com/google/jsonapi"
 	"github.com/google/uuid"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -443,4 +444,36 @@ func TestWriteModelToResponseFromHeaders(t *testing.T) {
 		equals(t, expectedBodyStr, bodyStr)
 	}
 
+}
+
+func TestCheckJSONMarshalAndWrite(t *testing.T) {
+	testCases := []struct {
+		data       interface{}
+		status     int
+		expected   string
+		shouldPass bool
+	}{
+		{"some-val", 200, `"some-val"`, true},
+		{"another-val", 201, `"another-val"`, true},
+		{4, rand.Intn(401) + 100, "4", true},
+		{map[string]interface{}{"foo": "bar", "baz": 6}, rand.Intn(401) + 100, `{"baz":6,"foo":"bar"}`, true},
+		{0.254, rand.Intn(401) + 100, "0.254", true},
+		{0.254, rand.Intn(401) + 100, "0.254", true},
+		{math.Inf(1), 0, "", false},
+		// Prob can add more failing cases
+	}
+
+	for _, tc := range testCases {
+		recorder := httptest.NewRecorder()
+		err := server.CheckJSONMarshalAndWrite(tc.data, tc.status, recorder)
+		if tc.shouldPass {
+			ok(t, err)
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(recorder.Result().Body)
+			bodyStr := buf.String()
+			equals(t, tc.expected, bodyStr)
+		} else {
+			assert(t, err != nil, "Should return err if json marshal error")
+		}
+	}
 }
