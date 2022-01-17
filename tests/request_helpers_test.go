@@ -361,7 +361,6 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 
 		logFnCalled := false
 		logFn := func(e error, r *http.Request) {
-			t.Log(e)
 			logFnCalled = true
 		}
 
