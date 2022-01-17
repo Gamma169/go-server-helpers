@@ -224,7 +224,10 @@ func TestStandardRequestHandler(t *testing.T) {
 	assert(t, val == valReceived, "Assert that logic function has been called")
 	equals(t, max, maxReceived)
 	assert(t, preProcessCalled, "Should have called PreprocessFunc")
+
 	equals(t, logicOutput, responseReceived)
+	// If I change internals back to passing in a pointer
+	// equals(t, logicOutput, *(responseReceived.(*interface{})))
 	equals(t, statusToReturn, statusRecieved)
 	equals(t, statusToReturn, recorder.Code)
 	assert(t, !logFnCalled, "Should not have called log fn")
@@ -302,14 +305,14 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 		status int
 		fmtStr string
 	}{
-		{uuid.New().String(), randString(60), server.JSONContentType, 200, jsonFmt},
+		// {uuid.New().String(), randString(60), server.JSONContentType, 200, jsonFmt},
 		// {uuid.New().String(), randString(60), server.JSONContentType, 201, jsonFmt},
 		{uuid.New().String(), randString(60), jsonapi.MediaType, 200, jsonapiFmt},
-		// {uuid.New().String(), randString(60), jsonapi.MediaType, 201, jsonapiFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonapiFmt},
-		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonapiFmt},
+		{uuid.New().String(), randString(60), jsonapi.MediaType, 201, jsonapiFmt},
+		{uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
+		{uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
+		{uuid.New().String(), randString(60), jsonapi.MediaType, rand.Intn(401) + 100, jsonapiFmt},
+		{uuid.New().String(), randString(60), jsonapi.MediaType, rand.Intn(401) + 100, jsonapiFmt},
 	}
 
 	for _, tc := range testCases {

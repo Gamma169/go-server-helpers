@@ -5,7 +5,10 @@ import (
 	"errors"
 	"github.com/google/jsonapi"
 	"net/http"
+	"reflect"
 )
+
+import "log"
 
 const ContentTypeHeader = "Content-Type"
 const AcceptContentTypeHeader = "Accept"
@@ -187,7 +190,28 @@ func WriteModelToResponseJSON(dataToSend interface{}, status int, w http.Respons
 func WriteModelToResponseJSONAPI(dataToSend interface{}, status int, w http.ResponseWriter) (err error) {
 	w.Header().Set(ContentTypeHeader, jsonapi.MediaType)
 	var jsonAPIPayload jsonapi.Payloader
-	if jsonAPIPayload, err = jsonapi.Marshal(dataToSend); err != nil {
+	log.Println("ASDSD")
+	log.Println(dataToSend)
+	log.Println("QWWEQWE")
+	castVar := reflect.ValueOf(dataToSend)
+	castVar.Convert(castVar.Type())
+	structData := reflect.PtrTo(castVar.Type())
+	log.Println(structData)
+	log.Println("POIOI")
+	// log.Println(structData.Elem())
+
+	// t := reflect.TypeOf(dataToSend)
+	// for i := 0; i < t.NumField(); i++ {
+	// 	if t.Field(i).Type.Kind() == reflect.String {
+	// 		r := reflect.ValueOf(dataToSend)
+	// 		log.Println(reflect.Indirect(structData).Field(i), reflect.Indirect(r).Field(i).String())
+	// 		log.Println("===========")
+	// 	}
+	// }
+
+	log.Println("ZXCZXC")
+
+	if jsonAPIPayload, err = jsonapi.Marshal(structData); err != nil {
 		return
 	}
 	return CheckJSONMarshalAndWrite(jsonAPIPayload, status, w)
