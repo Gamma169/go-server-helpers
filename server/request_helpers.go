@@ -194,10 +194,19 @@ func WriteModelToResponseJSONAPI(dataToSend interface{}, status int, w http.Resp
 	log.Println(dataToSend)
 	log.Println("QWWEQWE")
 	castVar := reflect.ValueOf(dataToSend)
-	castVar.Convert(castVar.Type())
-	structData := reflect.PtrTo(castVar.Type())
-	log.Println(structData)
+	log.Println(castVar)
+	log.Println(castVar.Type())
 	log.Println("POIOI")
+	// castVar = castVar.Convert(reflect.PtrTo(castVar.Type()))
+	log.Println(castVar)
+	log.Println(castVar.Type())
+
+	structData := reflect.PtrTo(castVar.Type())
+
+	// dv := reflect.ValueOf(dataToSend)
+
+	log.Println("ZXCZXC")
+
 	// log.Println(structData.Elem())
 
 	// t := reflect.TypeOf(dataToSend)
@@ -208,8 +217,6 @@ func WriteModelToResponseJSONAPI(dataToSend interface{}, status int, w http.Resp
 	// 		log.Println("===========")
 	// 	}
 	// }
-
-	log.Println("ZXCZXC")
 
 	if jsonAPIPayload, err = jsonapi.Marshal(structData); err != nil {
 		return
