@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/google/jsonapi"
 	"net/http"
-	// "reflect"
 )
 
 const ContentTypeHeader = "Content-Type"
@@ -104,11 +103,11 @@ func SendErrorOnError(err error, status int, w http.ResponseWriter, r *http.Requ
  *   - Response
  * Pass in functions that do each of the three things, and only focus on actual code
  *
- * Please note that these functions can add a bit of "understanding" overhead to a program
+ * Please note that these functions can add a bit of "understanding overhead" to a program
  * Using them can make your code difficult to understand and may ADD to your code instead of remove from it
  * They are most useful if your code has many models that act similarly and need to all be handled similarly
  * So you can write one `logicFunc` and pass in different models and not worry about things
- * If many `preprocessFunc`s or logicFunc`s or `responseFunc`s  are needed, it may be best to just write out a handler yourself
+ * If many different `preprocessFunc`s or logicFunc`s or `responseFunc`s  are needed, it may be best to just write out a handler yourself
  *
  * NOTE: Be sure to pass in a pointer to inputPtr or else they won't work
  * Can pass in <nil> to inputPtr in order to avoid calling preprocessFunc
@@ -228,7 +227,8 @@ func WriteNoContentToResponse(dataToSend interface{}, status int, w http.Respons
 	If we do this:
 		w.WriteHeader(status)
 		return json.NewEncoder(w).Encode(payload)
-	Then, if the Encode function errors, the status will already have been set, and mask the output from the server
+	Then, if the `Encode` function errors, the status will already have been set and will not be set by any error function down the line,
+	thus masking the status output from the server
 	(For example, we write 200 status, then the function errors, and an error bubbles-up, but a 500 error code cannot be written because the 200 was already written)
 
 	Likewise if we do this:
@@ -237,7 +237,7 @@ func WriteNoContentToResponse(dataToSend interface{}, status int, w http.Respons
 		}
 	Then, only a 200 code is ever written and the WriteHeader call is ignored because data has already been written to the ResponseWriter
 
-	Thus we can use this function to capture the error appropriately
+	Thus we can use this `CheckJSONMarshalAndWrite` function to capture the error appropriately
 
 	See golang ResponseWriter for how information on the `WriteHeader` works
 	https://pkg.go.dev/net/http@go1.17.1#ResponseWriter
