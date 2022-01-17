@@ -33,8 +33,8 @@ jobs:
       - name: Run gofmt
         run: gofmt -w .
 
-      - name: Check gofmt
-        run: echo "TODO"
+      - name: Check If Files Changed
+        run: if git diff-index --quiet HEAD --; then true; else false; fi
 
   
   external-unit-tests:
