@@ -30,6 +30,9 @@ jobs:
       - name: Check Build
         run: go build ./...
 
+      - name: Run gofmt
+        run: gofmt -w .
+
       - name: Check gofmt
         run: echo "TODO"
 
