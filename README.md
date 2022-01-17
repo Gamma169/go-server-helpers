@@ -22,7 +22,7 @@ go get github.com/Gamma169/go-server-helpers@v0.2.0
 
 This library is organized into packages.  In order to use a function impot the package directly in your code.
 
-*NOTE:* The capitalization in `Gamma169` is important or else the library will not be picked up.
+**NOTE:** The capitalization in `Gamma169` is important or else the library will not be picked up.
 ```Go
 import (
 	"github.com/Gamma169/go-server-helpers/environments"
@@ -87,7 +87,7 @@ go test -v ./tests
 ```
 
 ### Format
-Use standard gofmt tool.
+Use standard gofmt tool.  **This formatting is enforced by the automated tests and tests will fail if code is not formatted properly**
 ```Shell
 gofmt -w .
 ```
