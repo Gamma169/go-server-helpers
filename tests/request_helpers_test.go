@@ -7,6 +7,7 @@ import (
 	"github.com/Gamma169/go-server-helpers/server"
 	"github.com/google/jsonapi"
 	"github.com/google/uuid"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -145,6 +146,136 @@ func TestSendErrorOnError(t *testing.T) {
 		equals(t, tc.err, errorPassedToLogFn)
 	}
 
+}
+
+/*********************************************
+ * Test Standard Handlers
+ * *******************************************/
+
+// This function is basically a combination of all the others.  Almost like an integration test
+func TestStandardRequestHandler(t *testing.T) {
+
+	val := randString(60)
+	var valReceived string
+	ts := testStruct{
+		callWhenValdidated: func() {
+			valReceived = val
+		},
+	}
+	max := rand.Intn(10000)
+	preProcessCalled := false
+	var maxReceived int
+	preprocessFunc := func(i server.InputObject, maxB int, w http.ResponseWriter, r *http.Request) error {
+		maxReceived = maxB
+		preProcessCalled = true
+		return nil
+	}
+
+	statusToReturn := rand.Intn(401) + 100
+	logicOutput := randString(600)
+	// Calling validate in logic in order to test server.InputObject properly
+	logicFunc := func(i server.InputObject, r *http.Request) (interface{}, int, error) {
+		i.Validate()
+		return logicOutput, statusToReturn, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	var statusRecieved int
+	var responceReceived interface{}
+	responseFunc := func(i interface{}, status int, w http.ResponseWriter, r *http.Request) error {
+		responceReceived = i
+		statusRecieved = status
+		recorder.Code = status
+		return nil
+	}
+
+	req, err := http.NewRequest("GET", "/"+randString(25), nil)
+	ok(t, err)
+
+	logFnCalled := false
+	logFn := func(e error, r *http.Request) {
+		logFnCalled = true
+	}
+
+	// FUNCTION TO TEST:
+	server.StandardRequestHandler(
+		ts,
+		max,
+		preprocessFunc,
+		logicFunc,
+		responseFunc,
+		recorder,
+		req,
+		logFn,
+	)
+
+	equals(t, val, valReceived)
+	equals(t, max, maxReceived)
+	assert(t, preProcessCalled, "Should have called PreprocessFunc")
+	equals(t, logicOutput, responceReceived)
+	equals(t, statusToReturn, statusRecieved)
+	equals(t, statusToReturn, recorder.Code)
+	assert(t, !logFnCalled, "Should not have called log fn")
+
+	// Checking returns 400 on preprocess error
+
+	// Important to use new recorder
+	recorder = httptest.NewRecorder()
+	errStr := randString(60)
+	badPreprocessFunc := func(i server.InputObject, maxB int, w http.ResponseWriter, r *http.Request) error {
+		return errors.New(errStr)
+	}
+
+	// FUNCTION TO TEST:
+	server.StandardRequestHandler(
+		ts,
+		max,
+		badPreprocessFunc,
+		logicFunc,
+		responseFunc,
+		recorder,
+		req,
+		logFn,
+	)
+
+	equals(t, 400, recorder.Code)
+	assert(t, logFnCalled, "Should call error logfn when errored")
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(recorder.Result().Body)
+	bodyStr := buf.String()
+	equals(t, errStr+"\n", bodyStr)
+
+	// Checking returned status on logic error
+
+	logFnCalled = false
+	statusRecieved = 0
+	statusToReturn = rand.Intn(401) + 100
+	// Important to use new recorder
+	recorder = httptest.NewRecorder()
+
+	errStr = randString(60)
+	badLogicFunc := func(i server.InputObject, r *http.Request) (interface{}, int, error) {
+		return nil, statusToReturn, errors.New(errStr)
+	}
+
+	// FUNCTION TO TEST:
+	server.StandardRequestHandler(
+		ts,
+		max,
+		preprocessFunc,
+		badLogicFunc,
+		responseFunc,
+		recorder,
+		req,
+		logFn,
+	)
+
+	equals(t, statusToReturn, recorder.Code)
+	assert(t, logFnCalled, "Should call error logfn when errored")
+	buf = new(bytes.Buffer)
+	buf.ReadFrom(recorder.Result().Body)
+	bodyStr = buf.String()
+	equals(t, errStr+"\n", bodyStr)
 }
 
 /*********************************************

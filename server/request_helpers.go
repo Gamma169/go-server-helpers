@@ -84,6 +84,67 @@ func SendErrorOnError(err error, status int, w http.ResponseWriter, r *http.Requ
 }
 
 /*********************************************
+ * Standard Handlers
+ * *******************************************/
+
+func StandardRequestHandler(
+	inputStruct InputObject,
+	maxBytes int,
+	preprocessFunc func(InputObject, int, http.ResponseWriter, *http.Request) error,
+	logicFunc func(InputObject, *http.Request) (interface{}, int, error),
+	responseFunc func(interface{}, int, http.ResponseWriter, *http.Request) error,
+	w http.ResponseWriter,
+	r *http.Request,
+	logError func(error, *http.Request),
+) {
+	var err error
+	var errStatus = http.StatusInternalServerError
+
+	defer func() { SendErrorOnError(err, errStatus, w, r, logError) }()
+
+	if err = preprocessFunc(inputStruct, maxBytes, w, r); err != nil {
+		errStatus = http.StatusBadRequest
+		return
+	}
+
+	var status int
+	var outputStruct interface{}
+	if outputStruct, status, err = logicFunc(inputStruct, r); err != nil {
+		errStatus = status
+		return
+	}
+
+	err = responseFunc(outputStruct, status, w, r)
+}
+
+func StandardJSONRequestHandler(
+	inputStruct InputObject,
+	maxBytes int,
+	logicFunc func(InputObject, *http.Request) (interface{}, int, error),
+	w http.ResponseWriter,
+	r *http.Request,
+	logError func(error, *http.Request),
+) {
+	// Note that the json write function below does not need the request
+	// So we wrap it in an anonymous function in order to fit the area 'StandardRequestHandler' expects
+	jsonRespFuncWrapper := func(input interface{}, status int, w http.ResponseWriter, r *http.Request) error {
+		return WriteModelToResponseJSON(input, status, w)
+	}
+	StandardRequestHandler(inputStruct, maxBytes, PreProcessInputFromJSON, logicFunc, jsonRespFuncWrapper, w, r, logError)
+}
+
+func StandardAgnosticRequestHandler(
+	inputStruct InputObject,
+	maxBytes int,
+	logicFunc func(InputObject, *http.Request) (interface{}, int, error),
+	w http.ResponseWriter,
+	r *http.Request,
+	logError func(error, *http.Request),
+) {
+	StandardRequestHandler(inputStruct, maxBytes, PreProcessInputFromHeaders, logicFunc, WriteModelToResponseFromHeaders, w, r, logError)
+}
+
+/*********************************************
  * Writing Outputs
  * *******************************************/
 
