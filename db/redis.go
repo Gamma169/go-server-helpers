@@ -8,6 +8,17 @@ import (
 	"log"
 )
 
+func CheckRequiredRedisEnvs(envVarPrefix string, useTLS bool) {
+	envVar := "REDIS"
+	if useTLS {
+		envVar = "REDIS_TLS"
+	}
+
+	if redisURL := envs.GetOptionalEnv(envVarPrefix+envVar+"_URL", ""); redisURL == "" {
+		envs.GetRequiredEnv(envVarPrefix + envVar + "_HOST")
+	}
+}
+
 func InitRedis(envVarPrefix string, useTLS bool, debug bool) (redisClient *redis.Client) {
 	if debug {
 		log.Println("Establishing connection with database")
@@ -18,9 +29,9 @@ func InitRedis(envVarPrefix string, useTLS bool, debug bool) (redisClient *redis
 	}
 
 	var redisOptions *redis.Options
-	if envs.GetOptionalEnv(envVarPrefix+envVar+"_URL", "") != "" {
+	if redisURL := envs.GetOptionalEnv(envVarPrefix+envVar+"_URL", ""); redisURL != "" {
 		var err error
-		if redisOptions, err = redis.ParseURL(envs.GetRequiredEnv(envVarPrefix + envVar + "_URL")); err != nil {
+		if redisOptions, err = redis.ParseURL(redisURL); err != nil {
 			log.Println("Error creating redis options")
 			panic(err)
 		}

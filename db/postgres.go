@@ -11,14 +11,21 @@ import (
 	"strings"
 )
 
+func CheckRequiredPostgresEnvs() {
+	if envs.GetOptionalEnv("DATABASE_URL", "") == "" {
+		envs.GetRequiredEnv("DATABASE_NAME")
+		envs.GetRequiredEnv("DATABASE_HOST")
+		envs.GetRequiredEnv("DATABASE_USER")
+	}
+}
+
 func InitPostgres(envVarPrefix string, debug bool) (dbConn *sql.DB) {
 	if debug {
 		log.Println("Establishing connection with postgres database")
 	}
 	var err error
 
-	dbURL := envs.GetOptionalEnv(envVarPrefix+"DATABASE_URL", "")
-	if dbURL != "" {
+	if dbURL := envs.GetOptionalEnv(envVarPrefix+"DATABASE_URL", ""); dbURL != "" {
 		dbConn, err = sql.Open("postgres", dbURL)
 	} else {
 		dbConn, err = sql.Open("postgres",
