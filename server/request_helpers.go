@@ -23,6 +23,9 @@ type InputObject interface {
 // Be sure to pass in pointer to InputObject
 // Usage:  PreProcessInput(&model, 500, w, r, fn)
 func PreProcessInput(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request, unmarshalFn func(interface{}, *http.Request) error) error {
+	if input == nil {
+		return nil
+	}
 
 	max := 524288
 	if maxBytes != 0 {
@@ -100,7 +103,9 @@ func SendErrorOnError(err error, status int, w http.ResponseWriter, r *http.Requ
  *   - Response
  * Pass in functions that do each of the three things, and only focus on actual code
  *
- * NOTE: Be sure to pass in a pointer or else they won't work
+ * NOTE: Be sure to pass in a pointer to inputPtr or else they won't work
+ * Can pass in <nil> to inputPtr in order to avoid calling preprocessFunc
+ * (useful for json handler that outputs json but doesn't require input)
  * *******************************************/
 
 func StandardRequestHandler(
@@ -164,18 +169,18 @@ func StandardAgnosticRequestHandler(
  * Writing Outputs
  * *******************************************/
 
-func WriteModelToResponseJSON(dataToSend interface{}, status int, w http.ResponseWriter) error {
+func WriteModelToResponseJSON(dataToSend interface{}, status int, w http.ResponseWriter) (err error) {
 	w.Header().Set(ContentTypeHeader, JSONContentType)
-	// NOTE: w.WriteHeader must go after all other header writes but before json encoder or else it/headers will not be picked up
-	w.WriteHeader(status)
-	return json.NewEncoder(w).Encode(dataToSend)
+	return CheckJSONMarshalAndWrite(dataToSend, status, w)
 }
 
-func WriteModelToResponseJSONAPI(dataToSend interface{}, status int, w http.ResponseWriter) error {
+func WriteModelToResponseJSONAPI(dataToSend interface{}, status int, w http.ResponseWriter) (err error) {
 	w.Header().Set(ContentTypeHeader, jsonapi.MediaType)
-	// NOTE: w.WriteHeader must go after all other header writes but before json encoder or else it/headers will not be picked up
-	w.WriteHeader(status)
-	return jsonapi.MarshalPayload(w, dataToSend)
+	var jsonAPIPayload jsonapi.Payloader
+	if jsonAPIPayload, err = jsonapi.Marshal(dataToSend); err != nil {
+		return
+	}
+	return CheckJSONMarshalAndWrite(jsonAPIPayload, status, w)
 }
 
 func WriteModelToResponseFromHeaders(dataToSend interface{}, status int, w http.ResponseWriter, r *http.Request) error {
@@ -191,4 +196,40 @@ func WriteModelToResponseFromHeaders(dataToSend interface{}, status int, w http.
 func WriteNoContentToResponse(dataToSend interface{}, status int, w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(http.StatusNoContent)
 	return nil
+}
+
+/*
+	This function manually marshals the json payload, and checks to see if it marshals to valid json before writing the header and response
+	We use this function in order to write a proper error status if the passed-in data does not marshal properly
+
+	If we do this:
+		w.WriteHeader(status)
+		return json.NewEncoder(w).Encode(payload)
+	Then, if the Encode function errors, the status will already have been set, and mask the output from the server
+	(For example, we write 200 status, then the function errors, and an error bubbles-up, but a 500 error code cannot be written because the 200 was already written)
+
+	Likewise if we do this:
+		if err = json.NewEncoder(w).Encode(payload); err == nil {
+			w.WriteHeader(status)
+		}
+	Then, only a 200 code is ever written and the WriteHeader call is ignored because data has already been written to the ResponseWriter
+
+	Thus we can use this function to capture the error appropriately
+
+	See golang ResponseWriter for how information on the `WriteHeader` works
+	https://pkg.go.dev/net/http@go1.17.1#ResponseWriter
+
+	NOTE:  The `w.Write` call can also fail (due to network isues for example )
+	in which case the server will not respond with the correct status code regardless (because it cannot write ANY status code)
+	But we still capture the error to bubble it up and do any logging/handling on the server side
+*/
+func CheckJSONMarshalAndWrite(data interface{}, status int, w http.ResponseWriter) (err error) {
+	var jsonData []byte
+	if jsonData, err = json.Marshal(data); err != nil {
+		return
+	}
+	w.WriteHeader(status)
+	// NOTE: this can also fail, see note above
+	_, err = w.Write(jsonData)
+	return
 }

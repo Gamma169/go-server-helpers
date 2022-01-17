@@ -51,7 +51,11 @@ func TestPreProcessInput(t *testing.T) {
 	req, err := http.NewRequest("GET", "/"+randString(25), nil)
 	ok(t, err)
 
-	unmarshalFn := func(interface{}, *http.Request) error { return nil }
+	unmarshalFnCalled := false
+	unmarshalFn := func(interface{}, *http.Request) error {
+		unmarshalFnCalled = true
+		return nil
+	}
 
 	validateCalled := false
 	ts := testStruct{
@@ -63,6 +67,13 @@ func TestPreProcessInput(t *testing.T) {
 	err = server.PreProcessInput(ts, 500, httptest.NewRecorder(), req, unmarshalFn)
 	ok(t, err)
 	assert(t, validateCalled, "Should call Validate function when processed")
+	assert(t, unmarshalFnCalled, "Should call unmarshalFn passed in")
+
+	// Should return nil and not call unmarshall func if provided nil input
+	unmarshalFnCalled = false
+	err = server.PreProcessInput(nil, 0, httptest.NewRecorder(), req, unmarshalFn)
+	ok(t, err)
+	assert(t, !unmarshalFnCalled, "Should NOT call unmarshalFn when input is nil")
 }
 
 func TestUnmarshalObjectFromHeaders(t *testing.T) {
@@ -292,7 +303,7 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 	}{
 		{uuid.New().String(), randString(60), server.JSONContentType, 200, jsonFmt},
 		// {uuid.New().String(), randString(60), server.JSONContentType, 201, jsonFmt},
-		// {uuid.New().String(), randString(60), jsonapi.MediaType, 200, jsonapiFmt},
+		{uuid.New().String(), randString(60), jsonapi.MediaType, 200, jsonapiFmt},
 		// {uuid.New().String(), randString(60), jsonapi.MediaType, 201, jsonapiFmt},
 		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
 		// {uuid.New().String(), randString(60), server.JSONContentType, rand.Intn(401) + 100, jsonFmt},
@@ -336,13 +347,14 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 
 		logFnCalled := false
 		logFn := func(e error, r *http.Request) {
+			t.Log(e)
 			logFnCalled = true
 		}
 
 		// FUNCTION TO TEST:
 		server.StandardAgnosticRequestHandler(
 			&ts,
-			rand.Intn(10000)+1000,
+			rand.Intn(10000)+2000,
 			logicFunc,
 			recorder,
 			req,
@@ -374,7 +386,7 @@ func TestStandardAgnosticRequestHandler(t *testing.T) {
 		buf.ReadFrom(recorder.Result().Body)
 		bodyStr = buf.String()
 
-		equals(t, expectedBodyStr+"\n", bodyStr)
+		equals(t, expectedBodyStr, bodyStr)
 	}
 
 }
@@ -428,7 +440,7 @@ func TestWriteModelToResponseFromHeaders(t *testing.T) {
 		buf.ReadFrom(recorder.Result().Body)
 		bodyStr := buf.String()
 
-		equals(t, expectedBodyStr+"\n", bodyStr)
+		equals(t, expectedBodyStr, bodyStr)
 	}
 
 }
