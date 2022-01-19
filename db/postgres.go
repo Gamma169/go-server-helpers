@@ -6,6 +6,7 @@ import (
 	envs "github.com/Gamma169/go-server-helpers/environments"
 	_ "github.com/lib/pq"
 	"log"
+	"net/http"
 )
 
 func CheckRequiredPostgresEnvs(envVarPrefix string) {
@@ -18,6 +19,10 @@ func CheckRequiredPostgresEnvs(envVarPrefix string) {
 		envs.GetRequiredEnv(envVarPrefix + "DATABASE_USER")
 	}
 }
+
+/*********************************************
+ * Top-level Postgres Connection
+ * *******************************************/
 
 func InitPostgres(envVarPrefix string, debug bool) (dbConn *sql.DB) {
 	if debug {
@@ -59,4 +64,52 @@ func ValidateDBConnOrPanic(dbConn *sql.DB, debug bool) {
 		log.Println("Error: Could not connect to DB")
 		panic(err)
 	}
+}
+
+/*********************************************
+ * Getter + Setter Funcs
+ * *******************************************/
+
+type DBModel interface {
+	ScanFromRowsOrRow(interface {
+		Scan(dest ...interface{}) error
+	})
+	ConvertToDatabaseInput() []interface{}
+}
+
+func GetModelByVal(stmt *sql.Stmt, model *DBModel, val string) (err error, errStatus int) {
+	row := stmt.QueryRow(val)
+
+	if err = (*model).ScanFromRowsOrRow(row); err == sql.ErrNoRows {
+		errStatus = http.StatusNotFound
+	} else if err != nil {
+		errStatus = http.StatusInternalServerError
+	}
+	return
+}
+
+func GetModelsByVal(stmt *sql.Stmt, models []*DBModel, val string) (err error) {
+	var rows *sql.Rows
+	if rows, err = stmt.Query(val); err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		model := DBModel{}
+
+		if err = model.ScanFromRowsOrRow(rows); err != nil {
+			return
+		}
+
+		models = append(models, &model)
+	}
+
+	return
+}
+
+func PostModelToDatabase(stmt *sql.Stmt, model *DBModel) error {
+	dbInput := model.ConvertToDatabaseInput()
+	_, err := stmt.Exec(dbInput...)
+	return err
 }
