@@ -22,8 +22,8 @@ type InputObject interface {
 
 // Be sure to pass in pointer to InputObject
 // Usage:  PreProcessInput(&model, 500, w, r, fn)
-func PreProcessInput(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request, unmarshalFn func(interface{}, *http.Request) error) error {
-	if input == nil {
+func PreProcessInput(inputPtr InputObject, maxBytes int, w http.ResponseWriter, r *http.Request, unmarshalFn func(interface{}, *http.Request) error) error {
+	if inputPtr == nil {
 		return nil
 	}
 
@@ -33,51 +33,51 @@ func PreProcessInput(input InputObject, maxBytes int, w http.ResponseWriter, r *
 	}
 	// Block the read of any body too large in order to help prevent DoS attacks
 	r.Body = http.MaxBytesReader(w, r.Body, int64(max))
-	if err := unmarshalFn(input, r); err != nil {
+	if err := unmarshalFn(inputPtr, r); err != nil {
 		return err
 	}
 
-	return input.Validate()
+	return inputPtr.Validate()
 }
 
 // Common convenience functions
 
-func PreProcessInputFromHeaders(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request) error {
-	return PreProcessInput(input, maxBytes, w, r, UnmarshalObjectFromHeaders)
+func PreProcessInputFromHeaders(inputPtr InputObject, maxBytes int, w http.ResponseWriter, r *http.Request) error {
+	return PreProcessInput(inputPtr, maxBytes, w, r, UnmarshalObjectFromHeaders)
 }
 
-func PreProcessInputFromJSON(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request) error {
-	return PreProcessInput(input, maxBytes, w, r, UnmarshalObjectFromJSONStrict)
+func PreProcessInputFromJSON(inputPtr InputObject, maxBytes int, w http.ResponseWriter, r *http.Request) error {
+	return PreProcessInput(inputPtr, maxBytes, w, r, UnmarshalObjectFromJSONStrict)
 }
 
-func PreProcessInputFromJSONAPI(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request) error {
-	return PreProcessInput(input, maxBytes, w, r, func(interface{}, *http.Request) error {
-		return jsonapi.UnmarshalPayload(r.Body, input)
+func PreProcessInputFromJSONAPI(inputPtr InputObject, maxBytes int, w http.ResponseWriter, r *http.Request) error {
+	return PreProcessInput(inputPtr, maxBytes, w, r, func(interface{}, *http.Request) error {
+		return jsonapi.UnmarshalPayload(r.Body, inputPtr)
 	})
 }
 
 // Unmarshalling logic
 
-func UnmarshalObjectFromHeaders(input interface{}, r *http.Request) error {
+func UnmarshalObjectFromHeaders(inputPtr interface{}, r *http.Request) error {
 	header := r.Header.Get(ContentTypeHeader)
 	if header == JSONContentType {
-		return UnmarshalObjectFromJSONStrict(input, r)
+		return UnmarshalObjectFromJSONStrict(inputPtr, r)
 	} else if header == jsonapi.MediaType {
-		return jsonapi.UnmarshalPayload(r.Body, input)
+		return jsonapi.UnmarshalPayload(r.Body, inputPtr)
 	} else {
 		return errors.New("Content-Type header is not json or jsonapi standard")
 	}
 }
 
-func UnmarshalObjectFromJSON(input interface{}, r *http.Request) error {
+func UnmarshalObjectFromJSON(inputPtr interface{}, r *http.Request) error {
 	dec := json.NewDecoder(r.Body)
-	return dec.Decode(input)
+	return dec.Decode(inputPtr)
 }
 
-func UnmarshalObjectFromJSONStrict(input interface{}, r *http.Request) error {
+func UnmarshalObjectFromJSONStrict(inputPtr interface{}, r *http.Request) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-	return dec.Decode(input)
+	return dec.Decode(inputPtr)
 }
 
 /*********************************************

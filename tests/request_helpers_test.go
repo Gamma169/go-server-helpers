@@ -115,6 +115,33 @@ func TestUnmarshalObjectFromHeaders(t *testing.T) {
 	}
 }
 
+
+func TestPreProcessInputFromJSONAPI(t *testing.T) {
+
+	testCases := []struct {
+		id         string
+		name       string
+	}{
+		{uuid.New().String(), randString(60)},
+		{uuid.New().String(), randString(60)},
+		{uuid.New().String(), randString(60)},
+	}
+
+	for _, tc := range testCases {
+
+		bodyStr := fmt.Sprintf(jsonapiFmt, tc.id, tc.name)
+		req, err := http.NewRequest("GET", "/"+randString(25), strings.NewReader(bodyStr))
+		ok(t, err)
+
+		ts := testStruct{callWhenValdidated: func() {}}
+		err = server.PreProcessInputFromJSONAPI(&ts, 5000, httptest.NewRecorder(), req)
+
+		ok(t, err)
+		equals(t, tc.id, ts.Id)
+		equals(t, tc.name, ts.Name)
+	}
+}
+
 /*********************************************
  * Test Error Handling
  * *******************************************/
