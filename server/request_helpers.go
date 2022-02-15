@@ -52,7 +52,7 @@ func PreProcessInputFromJSON(input InputObject, maxBytes int, w http.ResponseWri
 
 func PreProcessInputFromJSONAPI(input InputObject, maxBytes int, w http.ResponseWriter, r *http.Request) error {
 	return PreProcessInput(input, maxBytes, w, r, func(interface{}, *http.Request) error {
-		return jsonapi.UnmarshalPayload(r.Body, &input)
+		return jsonapi.UnmarshalPayload(r.Body, input)
 	})
 }
 
