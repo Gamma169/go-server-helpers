@@ -115,12 +115,11 @@ func TestUnmarshalObjectFromHeaders(t *testing.T) {
 	}
 }
 
-
 func TestPreProcessInputFromJSONAPI(t *testing.T) {
 
 	testCases := []struct {
-		id         string
-		name       string
+		id   string
+		name string
 	}{
 		{uuid.New().String(), randString(60)},
 		{uuid.New().String(), randString(60)},
