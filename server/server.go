@@ -12,13 +12,12 @@ import (
 	"time"
 )
 
-func SetupAndRunServer(router *mux.Router, port string, debug bool, shutdown func()) {
-
+func CreateAndRunServerFromRouter(router *mux.Router, port string, timeoutTime time.Duration, debug bool) http.Server {
 	server := http.Server{
 		Handler:      router,
 		Addr:         fmt.Sprintf("0.0.0.0:%s", port),
-		WriteTimeout: 5 * time.Minute,
-		ReadTimeout:  5 * time.Minute,
+		WriteTimeout: timeoutTime,
+		ReadTimeout:  timeoutTime,
 	}
 
 	// This should be 'log' so that we have at least one line printed when the server starts in production mode
@@ -32,9 +31,16 @@ func SetupAndRunServer(router *mux.Router, port string, debug bool, shutdown fun
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Println(err)
+			panic(err)
 		}
 	}()
+
+	return server
+}
+
+func SetupAndRunServer(router *mux.Router, port string, debug bool, shutdown func()) {
+
+	server := CreateAndRunServerFromRouter(router, port, 5*time.Minute, debug)
 
 	// Graceful shutdown procedure taken from example:
 	// https://github.com/gorilla/mux#graceful-shutdown
@@ -58,6 +64,43 @@ func SetupAndRunServer(router *mux.Router, port string, debug bool, shutdown fun
 	shutdown()
 	log.Println("Completed shutdown sequence.  Thank you and goodnight.  <(_ _)>")
 	os.Exit(0)
+}
+
+func SetupAndRunMultipleServers(routers []*mux.Router, ports []string, debug bool, shutdown func()) {
+
+	if len(routers) != len(ports) {
+		panic("'routers' and 'ports' provided to 'SetupAndRunMultipleServers' must have same length")
+	}
+
+	servers := []http.Server{}
+
+	for i, router := range routers {
+		log.Printf("Starting Server %d (of %d)\n", i, len(routers))
+		server := CreateAndRunServerFromRouter(router, ports[i], 5*time.Minute, debug)
+		servers = append(servers, server)
+
+	}
+
+	// See code comments on single server function to understand what this does
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<-c
+
+	var waitTime = time.Second * 15
+	if debug {
+		waitTime = time.Millisecond * 500
+	}
+
+	log.Println("Shutting Down Servers")
+	for _, server := range servers {
+		ctx, cancel := context.WithTimeout(context.Background(), waitTime)
+		defer cancel()
+		server.Shutdown(ctx)
+	}
+	shutdown()
+	log.Println("Completed shutdown sequence.  Thank you and goodnight.  <(_ _)>")
+	os.Exit(0)
+
 }
 
 // Print out all route info
