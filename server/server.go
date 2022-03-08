@@ -75,7 +75,7 @@ func SetupAndRunMultipleServers(routers []*mux.Router, ports []string, debug boo
 	servers := []http.Server{}
 
 	for i, router := range routers {
-		log.Printf("Starting Server %d (of %d)\n", i, len(routers))
+		log.Printf("Starting Server %d (of %d)\n", i+1, len(routers))
 		server := CreateAndRunServerFromRouter(router, ports[i], 5*time.Minute, debug)
 		servers = append(servers, server)
 
